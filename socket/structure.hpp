@@ -83,4 +83,8 @@ ipprint(IpInfoConfig &temp){
 		<<std::endl;
 }
 
+typedef  struct response_packet_{
+	bool is_resend;
+	uint16_t seq_no;
+}response_packet;
 #endif // _STRUCTURE_H_

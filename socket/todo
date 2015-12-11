@@ -1,0 +1,2 @@
+1. [PUSH] send seq_mismatch--resend request to client.
+2. [PUSH]redesign.... cleient and server both using queue... then why diff Q implementation for them??

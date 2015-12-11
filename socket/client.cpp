@@ -46,7 +46,6 @@ push_at_level( std::vector< T >& vec_,
 		vec_.resize(level_ );
 	}
 	vec_.insert( vec_.begin() + level_ , elem_);
-	std::cout<<"Inserted\n";
 	return;
 }
 
@@ -178,7 +177,6 @@ template<class T1,class T2>
 			 var = it->second;
 		 }
 		 
-		 std::cout<<"SWITCH\n";
 		  switch(obj.msg_){
 		      case 0:/*insert*/
 			   switch(obj.side_){
@@ -357,13 +355,15 @@ bool Client< T1,  T2>::init_client( void ){
 template<class T1,class T2>
 void* Client<T1,T2>::get_data(void *ptr ){
   Client<T1,T2> *cl_ptr=(Client<T1,T2>*)ptr;
-  int count=1; 
   uint16_t prev_seqno;
   int seq_no= 0, no=1,i=1,sockfd[2], portno, n, fd,flag=1;
   unsigned char buffer[256]="First ping\n";
   struct ExchangeA_MD  obj;
   pthread_mutex_t lock;
   struct sockaddr_in serv_addr[2];
+
+  response_packet  res_pack;
+
 
   for ( int i=0; i<2; i++ ) {
     bzero((char *) &serv_addr[i], sizeof(serv_addr));
@@ -411,8 +411,11 @@ void* Client<T1,T2>::get_data(void *ptr ){
   timeout.tv_sec  = 60; /* 1 min waiting time*/
   timeout.tv_usec = 0;
   int rc=0;
+  size_t count =0;
+  bool is_send_res = false;
+  bool mismatch = false;
+
   do {
-      bool mismatch = false;
       memcpy(&working_set, &master_set, sizeof(master_set));
       rc = select(max_sd + 1, &working_set, NULL, NULL, &timeout);
       if ( rc < 0 ) { 
@@ -451,17 +454,34 @@ void* Client<T1,T2>::get_data(void *ptr ){
 		 obj.level_ -=1;
 		
 		 if(  obj.seqno_ > seq_no ){
-			 cl_ptr->push_queue(obj);
 			 if ( seq_no + 1 != obj.seqno_ ){
 			//	 print_file (cl_ptr-> buy_order_book , cl_ptr->sell_order_book , cl_log->client_log );
-				 std::cerr<<seq_no<<"MISMATCH"<<obj.seqno_<<std::endl;
-				 mismatch = true;
-				 /* TODO send request to server for resending those packets */
-				 //exit(0);
-				}
-			 seq_no = obj.seqno_;
+				 std::cout<<seq_no<<"MISMATCH"<<obj.seqno_<<std::endl;
+				 res_pack.is_resend = true;
+				 res_pack.seq_no = (uint16_t) seq_no + 1; 
+				 is_send_res = true;
+			 }
+			 else
+			 {
+				 seq_no = obj.seqno_;
+				 cl_ptr->push_queue(obj);
+				 if ( ++count % 100 == 0){
+					 res_pack.is_resend = false;
+					 is_send_res = true;
+				 }
+			 }
 		 }
 	    }
+      /* send packet to server */
+      if ( is_send_res ){
+	      if ( ( sendto(sockfd[0], (void*)&res_pack, sizeof(res_pack), 0, 
+		(struct sockaddr*)&serv_addr[0], sizeof(serv_addr[0])) < 0 ) &&
+		      ( sendto(sockfd[1], (void*)&res_pack, sizeof(res_pack), 0,
+			  (struct sockaddr*)&serv_addr[1], sizeof(serv_addr[1])) < 0) ) {
+	      std::cerr << "Could not write to Server socket\n";
+	      }else is_send_res = false;
+      }
+      /* TODO send request to server for resending those packets */
   }while(i!=0);
   std::cout<<"\nDOne\n";
   close(sockfd[0]);close(sockfd[1]);

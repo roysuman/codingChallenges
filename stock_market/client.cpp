@@ -13,6 +13,12 @@ template<class T1 , class T2>
 market_map Client<T1,T2>::markets;
 template<class T1, class T2>
 bool Client<T1,T2>::stop_worker = false;
+
+template < class T>
+bool special_compare(const T& elem_container_, const T& pattern){
+	bool ret = elem_container_.price == pattern.price ? true: false;
+	return ret;
+}
 /* 
  * ===  FUNCTION  ======================================================================
  *         Name:  push_at_level
@@ -125,9 +131,23 @@ static print_file ( std::vector<MktBook_t>& sell_order_book,
 
 /* 
  * ===  FUNCTION  ======================================================================
+ *         Name:  ~Client
+ *  Description:  DESTRUCTOR
+ * =====================================================================================
+ */
+template< class T1, class T2>
+Client<T1, T2>::~Client(){
+	market_map_iterator it;
+	for ( it = markets.begin() ; it != markets.end();++it ){
+		delete it->second;
+	}
+	return;
+}
+/* 
+ * ===  FUNCTION  ======================================================================
  *         Name:  worker
  *  Description:  static worker method. Reads packet from queue and process it
- *                @ptr: pointer of the class which calling static method worker
+ *                @ptr: pointer of the class 
  *                return nullptr
  * =====================================================================================
  */
@@ -273,7 +293,7 @@ template<class T1,class T2>
 			   break;
 		   }
 		  /* do the market analysis  */
-		  cl_ptr->do_market_analysis(var);
+		  (void)cl_ptr->do_market_analysis(var);
 		  /* print market stat after certain interval */
 		  if( ++count % INTERVAL_COUNT == 0  ) {
 			  cl_ptr->client_log<<"\n#######Received MSG count=\t"<<count<<"  ##########"<<std::endl;
@@ -289,6 +309,23 @@ template<class T1,class T2>
 	  }
 	}
   }
+
+
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  do_marker_analysis
+ *  Description: When the order book is part of a matching engine, orders are matched as 
+ *               the interest of buyers and sellers can be satisfied. When there are 
+ *               orders where the bid price is equal or higher than the lowest ask, 
+ *               those orders can be immediately fulfilled and will not be part of 
+ *               the open orders book. If this situation remains, 
+ *               due to an error or a condition of the market, 
+ *               the order book is said to be crossed. 
+ *
+ *               var@ a struct varible that stores buy ans sell vector of market
+ * =====================================================================================
+ */
+
 template <class T1, class T2>
 bool Client<T1, T2>::do_market_analysis( buy_sid *var){
 
@@ -323,6 +360,7 @@ bool Client<T1, T2>::do_market_analysis( buy_sid *var){
 				 var->buy_order_book.erase( var->buy_order_book.begin() + 0 );
 			 }
 		  }
+		  return true;
 }
 template<class T1, class T2>
 bool Client< T1,  T2>::init_client( void ){
@@ -345,8 +383,7 @@ bool Client< T1,  T2>::init_client( void ){
  *         Name:  get_data
  *  Description:  establish connection with the server. Recv packets from server and store
  *                into a queue. This method is not responsable to process/maintain market
- *                related info. TODO: Send data resending request to server once there is 
- *                a packet loss.
+ *                related info. TODO: think about packet loss logic..UDP is not reliable
  *                @ptr: pointer ref of the calling class
  *                return nullptr
  * =====================================================================================
@@ -457,6 +494,7 @@ void* Client<T1,T2>::get_data(void *ptr ){
 			 if ( seq_no + 1 != obj.seqno_ ){
 			//	 print_file (cl_ptr-> buy_order_book , cl_ptr->sell_order_book , cl_log->client_log );
 				 std::cout<<seq_no<<"MISMATCH"<<obj.seqno_<<std::endl;
+				 /* request server to resend missed packes */
 				 res_pack.is_resend = true;
 				 res_pack.seq_no = (uint16_t) seq_no + 1; 
 				 is_send_res = true;
@@ -465,6 +503,7 @@ void* Client<T1,T2>::get_data(void *ptr ){
 			 {
 				 seq_no = obj.seqno_;
 				 cl_ptr->push_queue(obj);
+				 /* update server to remove packets from his lookup storage */
 				 if ( ++count % 100 == 0){
 					 res_pack.is_resend = false;
 					 is_send_res = true;
@@ -472,7 +511,13 @@ void* Client<T1,T2>::get_data(void *ptr ){
 			 }
 		 }
 	    }
-      /* send packet to server */
+      /* send packet to server 
+       * TODO but UDP is not reliable....
+       * suppose server sendding packets from seq NO 1....1000
+       * and 1000th packet got lost...then client seds a request packet to 
+       * server requesting 1000th packet...and this resquest packet also got loss
+       * THEN WHAT TO DO??
+       * */
       if ( is_send_res ){
 	      if ( ( sendto(sockfd[0], (void*)&res_pack, sizeof(res_pack), 0, 
 		(struct sockaddr*)&serv_addr[0], sizeof(serv_addr[0])) < 0 ) &&
@@ -481,14 +526,19 @@ void* Client<T1,T2>::get_data(void *ptr ){
 	      std::cerr << "Could not write to Server socket\n";
 	      }else is_send_res = false;
       }
-      /* TODO send request to server for resending those packets */
   }while(i!=0);
-  std::cout<<"\nDOne\n";
-  close(sockfd[0]);close(sockfd[1]);
+  close(sockfd[0]);
+  close(sockfd[1]);
   cl_ptr->client_log.close();
   return 0;
 }
   
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  main
+ *  Description:  initi the environment.... and then call two thread
+ * =====================================================================================
+ */
  int main(int argc, char**argv){
 	 pthread_t threads[2];
 	 int rc[2];

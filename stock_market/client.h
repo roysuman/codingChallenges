@@ -88,23 +88,22 @@ class Queue{
 template <class T1,class T2>
 class Client:private Queue<T2>{
 	private:
-//		std::vector <T1> buy_order_book,sell_order_book;
 		std::string config_file;
 		Queue<T2> data_store;
-		fstream client_log;
+		std::fstream client_log;
 		static market_map markets;
 		struct ClientInfo info;
 		static bool stop_worker;
+#ifdef DEBUG
+		std::string debug_filename;
+		std::fstream debug_log;
+#endif
 	public:
 		explicit Client(std::string config_file_):config_file(config_file_){}
+		virtual ~Client();
 
 		static void* get_data(void*);
 		static void* worker(void*);
 		bool init_client( void );
 		bool do_market_analysis(buy_sid *var);
 };
-template < class T>
-bool special_compare(const T& elem_container_, const T& pattern){
-	bool ret = elem_container_.price == pattern.price ? true: false;
-	return ret;
-}

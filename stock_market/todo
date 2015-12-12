@@ -1,2 +1,5 @@
-1. [PUSH] send seq_mismatch--resend request to client.
+1. [PUSH] send seq_mismatch--resend request to client. [POPED]
 2. [PUSH]redesign.... cleient and server both using queue... then why diff Q implementation for them??
+3. [PUSH] error on updating lookup read head....not working properly...
+
+

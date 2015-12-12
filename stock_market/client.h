@@ -94,10 +94,7 @@ class Client:private Queue<T2>{
 		static market_map markets;
 		struct ClientInfo info;
 		static bool stop_worker;
-#ifdef DEBUG
-		std::string debug_filename;
-		std::fstream debug_log;
-#endif
+		bool do_market_analysis(buy_sid *var);
 	public:
 		explicit Client(std::string config_file_):config_file(config_file_){}
 		virtual ~Client();
@@ -105,5 +102,4 @@ class Client:private Queue<T2>{
 		static void* get_data(void*);
 		static void* worker(void*);
 		bool init_client( void );
-		bool do_market_analysis(buy_sid *var);
 };

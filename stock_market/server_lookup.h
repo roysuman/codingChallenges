@@ -118,7 +118,7 @@ class CircularQueue {
 		inline void update_read_head( ssize_t position){
 			pthread_mutex_lock(&queue_lock);
 			this->front = (this->front + position ) % this->max_size;
-			if (this->front == this->rear)
+			if (this->front >= this->rear)
 				this->front = this->rear = -1;
 			pthread_mutex_unlock(&queue_lock);
 		}
@@ -160,22 +160,25 @@ class Server{
 		bool start_sending_from_lookup;
 		ssize_t lookup_seq;
 		pthread_mutex_t look_up_var_lock ;
-		void calc_stat(void);
+		ssize_t prev_send_seq;
+		bool stop_server;
 
+		static bool send( T&,void*);
+		bool create_servers();
 	public:
 		explicit Server(std::string config_file_name_):config_file_name(config_file_name_),
 			start_sending_from_lookup(false),lookup_seq(-1),look_up_var_lock(PTHREAD_MUTEX_INITIALIZER),
-			lookup_queue(nullptr),global_storage_queue(nullptr){}
+			lookup_queue(nullptr),global_storage_queue(nullptr),prev_send_seq(-1),
+			stop_server(false){}
 
 		virtual ~Server(){
 			if ( global_storage_queue != nullptr ) delete global_storage_queue;
 			if ( lookup_queue != nullptr ) delete lookup_queue;
 			if ( server_log.is_open())server_log.close();
 		}
-		bool create_servers();
+		void calc_stat(void);
 		static void* communicate_with_client(void *);
 		static void* read_and_store_market_data( void *);
 		static void* maintain_lookup( void *);
 		bool init_server(void);
-		static bool send( T&,void*);
 };

@@ -1,20 +1,3 @@
-/*
- *server.cpp
- *
- * last modified : 30/5/2013
- *
- * developed by :suman roy (email.suman.roy@gmail.com)
- *
- * this is a server programm, mainly used to create server at two different port
- *
- *it sends data to client after creating UDP connections
- */
-/* 
-template<class T>
-bool  Server<T>::srvr_ptr->start_sending_from_lookup = false;
-template<class T>
-ssize_t Server<T>::srvr_ptr->lookup_seq =-1;
-*/
 
 #include"server_lookup.h"
 
@@ -67,37 +50,70 @@ void* Server<T>::maintain_lookup( void *ptr){
 	response_packet rp;
 	ssize_t n;
 	size_t length = sizeof( rp);
-	/* a recv method will ocntiniously read response from client 
-	 if client sends a packet sequence number with miss flag
-	 check the lookup table and start sending packet from that seq_no*/
-	do{
-		/* TOTO create a TCP server */
-		n = recvfrom(srvr_ptr->sockfd,(void*)&rp,sizeof(rp), 0, NULL, 0);
-		n = recvfrom(srvr_ptr->sockfd,(void*)&rp,sizeof(rp), 0, NULL, 0);
-		if ( n <0 ){
-			std::cerr<<"\nError on receiving from CLIENT\n";
-			exit(0);
-		}
-		if ( rp.is_resend){/* start resending */
-			/* set the following variables to give a signal to client */
-				      
-			pthread_mutex_lock(&(srvr_ptr->look_up_var_lock));
-			srvr_ptr->start_sending_from_lookup= true;
-			srvr_ptr->lookup_seq = rp.seq_no;
 
-			pthread_mutex_unlock(&(srvr_ptr->look_up_var_lock));
-#ifdef DEBUG
-			std::cout<<"RESEND"<<"FROM SEQUENCE NUMBER "<<rp.seq_no<<std::endl;
-#endif
+	struct timeval       timeout;
+
+	fd_set master_set, working_set;
+	FD_ZERO(&master_set);
+	int max_sd = srvr_ptr->sockfd1; /* the last created socket to listen */
+	FD_SET(srvr_ptr->sockfd, &master_set);
+	FD_SET(srvr_ptr->sockfd1, &master_set);
+	timeout.tv_sec  = 60; /* 1 min waiting time*/
+	timeout.tv_usec = 0;
+	int rc;
+	do{
+		memcpy(&working_set, &master_set, sizeof(master_set));
+		rc = select(max_sd + 1, &working_set, NULL, NULL, &timeout);
+		if ( rc < 0 ) { 
+			perror ( " selec() failed.\n");
+			break;
+		}else if (rc == 0){
+			perror("No data received in last 1 minute..");
+			break;
 		}
-		else{
-			/*remove last 100 elements*/
+		else
+			for ( int i=0; i<max_sd; i++ ) 
+				if ( FD_ISSET(i, &working_set) ) {
+					int curr_sockfd = i==srvr_ptr->sockfd ? srvr_ptr->sockfd
+			 :i==srvr_ptr->sockfd1 ? srvr_ptr->sockfd1 : -1;
+					/* a recv method will ocntiniously read response from client 
+					 * if client sends a packet sequence number with miss flag
+					 * check the lookup table and start sending packet from that seq_no*/
+					/* TODO.. UDP server is not relaiable..YOU might use TCP*/
+					n = recvfrom(srvr_ptr->sockfd,(void*)&rp,sizeof(rp), 0, NULL, 0);
+					if ( n <0 ){
+						std::cerr<<"\nError on receiving from CLIENT\n";
+						break;
+					}
+					/* rp.is_resend == true, indicates that there is a packet loss ..
+					 * hence client sent a request to resend those lost packets */
+					if ( rp.is_resend){/* start resending */
+						/* set the following variables to give a signal to client */
+						pthread_mutex_lock(&(srvr_ptr->look_up_var_lock));
+						/* just set the value...Method communicate_with_client(void*)
+						 * continiously does check whether resend of packets needed
+						 * or not */
+						srvr_ptr->start_sending_from_lookup= true;
+						srvr_ptr->lookup_seq = rp.seq_no;
+						pthread_mutex_unlock(&(srvr_ptr->look_up_var_lock));
 #ifdef DEBUG
-			std::cout<<"REMOVE LAST 100 elem\n"<<std::endl;
+						std::cout<<"RESEND"<<"FROM SEQUENCE NUMBER "<<rp.seq_no<<std::endl;
 #endif
-			srvr_ptr->lookup_queue->update_read_head( 100 );
-		}
-	}while(n>0);
+					}else{
+						/*remove last 100 elements*/
+#ifdef DEBUG
+						std::cout<<"REMOVE LAST 100 elem\n"<<std::endl;
+						if ( (size_t)rp.seq_no == 1000 ){
+							std::cout<<"\nSEQ 1000\n"<<std::endl;
+							exit(0);
+						}
+#endif
+						srvr_ptr->lookup_queue->update_read_head( 100 );
+					}
+				}
+	}while(n);
+	srvr_ptr->stop_server = true;
+
 	return nullptr;
 }
 
@@ -121,7 +137,14 @@ void Server<T>::calc_stat( void){
 		<<diff<<std::endl;
 	return;
 }
-	
+
+
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  create_servers
+ *  Description:  create two udp server
+ * =====================================================================================
+ */
 template<class T>
 bool Server<T>::create_servers( void ){
 
@@ -178,6 +201,7 @@ void* Server<T>::read_and_store_market_data( void *ptr){
 	fd=open(srvr_ptr->info.path, ios::in | ios::out | ios::binary);
 	if(fd<0) {
 		std::cerr<<"file cant open\n";
+		/* TODO bring the service down */
 		goto END_local;
 	}
 	do{
@@ -189,10 +213,11 @@ void* Server<T>::read_and_store_market_data( void *ptr){
 		if ( flag !=0 ){
 
 			while ( srvr_ptr->global_storage_queue->en_queue(obj) == 0){
-				usleep(1);
+				/* queue full... go for a nano sleep */
+				usleep(10);
 			}
 		}
-	}while(flag);
+	}while(flag);/* untill binary file is not empty */
 
 END_local:
 	return nullptr;
@@ -210,7 +235,7 @@ void * Server<T>::communicate_with_client  (void *ptr){
 
 	Server<T> *srvr_ptr=(Server<T>*)ptr;
 	struct ExchangeA_MD  obj;
-	int i=1,fd,n,flag;
+	int i=1,fd,n,flag=1;
 
 	struct ExchangeA_MD st;
 	size_t resent_send_seq =0;
@@ -231,8 +256,6 @@ void * Server<T>::communicate_with_client  (void *ptr){
 			if ( resent_send_seq == 0 || resent_send_seq < srvr_ptr->lookup_seq ){
 				std::cerr<<"Nothing to resend\n";
 				srvr_ptr->start_sending_from_lookup = false;
-				exit(0);
-
 			}
 			else{
 				std::cout<<"\nREAD FROM LOOKUP\n"<<std::endl;
@@ -240,6 +263,7 @@ void * Server<T>::communicate_with_client  (void *ptr){
 				pthread_mutex_unlock(&(srvr_ptr->look_up_var_lock));
 				/* now start sending packets sequentially from 
 				 * the lookup array... */
+				srvr_ptr->prev_send_seq = srvr_ptr->lookup_seq -1;
 				for( size_t index = srvr_ptr->lookup_seq ; index <= resent_send_seq;++index ){
 					/* TODO check that read request index available or not */
 					std::cout<<"\nINFO...read from look up queue POSITION "<<std::endl;
@@ -253,6 +277,9 @@ void * Server<T>::communicate_with_client  (void *ptr){
 					 * if that happens ..then again start resending from the
 					 * lost index... */
 					pthread_mutex_lock(&(srvr_ptr->look_up_var_lock));
+					/* again there is a lost packet resend sequence?
+					 * while resending lost packet.....then start resending 
+					 * packet from lost packet seqence number */
 					if (srvr_ptr->start_sending_from_lookup &&
 							( srvr_ptr->lookup_seq <= index)&& 
 							!(resent_send_seq<srvr_ptr->lookup_seq) ){
@@ -263,13 +290,14 @@ void * Server<T>::communicate_with_client  (void *ptr){
 					pthread_mutex_unlock(&(srvr_ptr->look_up_var_lock));
 				}
 				pthread_mutex_lock(&(srvr_ptr->look_up_var_lock));
+				/* resend done  */
 				srvr_ptr->start_sending_from_lookup = false;
 			}
 		}
 		pthread_mutex_unlock(&(srvr_ptr->look_up_var_lock));
 		/* read from normal queue */
-		if ( !srvr_ptr->lookup_queue->is_full() ){
-			flag = srvr_ptr->global_storage_queue->de_queue(&obj);/* TODO check read or not*/ 
+		if ( !srvr_ptr->lookup_queue->is_full() ){/* if lookup storage is not full.. */
+			flag = srvr_ptr->global_storage_queue->de_queue(&obj);
 			if(flag==0 )
 				std::cerr<<"\nQueue is empty\n";
 			else{
@@ -278,18 +306,20 @@ void * Server<T>::communicate_with_client  (void *ptr){
 				while ( srvr_ptr->lookup_queue->en_queue(obj)==0 ){
 					std::cout<<"INFO...Lookup queue is full..\
 						going to sleep for a while"<<std::endl;
-					/*TODO remove the below line...it;s not his job
-					 * before that implement the response send part @client*/
-					//	srvr_ptr->lookup_queue->update_read_head( 100);
-					usleep(1); /* TODO remove cmnt */
+					usleep(1);
 				}
 			}
 			resent_send_seq = obj.seqno_;
-			/* to simulate packet loss env */
+			/* to test the logic.. forcefully do packet loss
+			 * because sometimes UDP sends all packet successfulyi..
+			 * it comment the beow line @production */
 			if ( obj.seqno_ != 100  || obj.seqno_ != 854)
 				Server<T>::send(obj,(void*)srvr_ptr);
 		}
-	}while(true);/* TODO stoping condition */
+		std::cout<<"\nlookup_que is_empty [ "<<srvr_ptr->lookup_queue->is_empty()<<std::endl;
+	}while( !srvr_ptr->stop_server );//&& !srvr_ptr->lookup_queue->is_empty());/* TODO stoping condition */
+	std::cout<<"OUT OF\n"<<std::endl;
+
 	/*TODO send signal that it has done */
 	gettimeofday(&srvr_ptr->tv2,NULL);
 	
@@ -300,8 +330,10 @@ bool Server<T>::send(T &obj, void *ptr){
 #ifdef DEBUG
 	std::cout<<__FUNCTION__<<std::endl;
 #endif
-	
 	Server<T> *srvr_ptr=(Server<T>*)ptr;
+	
+	if ( srvr_ptr->prev_send_seq >= obj.seqno_)
+		return false;
 	uint8_t *temp_send=new uint8_t[sizeof(obj)];
 
 	bool return_val = true;
@@ -345,6 +377,8 @@ bool Server<T>::send(T &obj, void *ptr){
 			<< n1_send << " " << n2_send
 			<< "\nWaiting for your response...:  "<<std::endl;
 		return_val = false;
+	}else{
+		srvr_ptr->prev_send_seq = obj.seqno_;
 	}
 	return return_val ;
 }
@@ -365,6 +399,7 @@ int main(int argc, char**argv){
 		 rc[0] = pthread_create(&threads[0], NULL, Server<struct ExchangeA_MD>::read_and_store_market_data, (void*)&server_ins);
 		 rc[1] = pthread_create(&threads[0], NULL, Server<struct ExchangeA_MD>::communicate_with_client, (void*)&server_ins);
 		 rc[2] = pthread_create(&threads[0], NULL, Server<struct ExchangeA_MD>::maintain_lookup, (void*)&server_ins);
+		 server_ins.calc_stat();
 		 (void) pthread_join(threads[0],nullptr);
 		 (void) pthread_join( threads[1],nullptr);
 		 (void) pthread_join( threads[2],nullptr);

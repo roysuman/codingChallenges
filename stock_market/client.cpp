@@ -138,8 +138,10 @@ static print_file ( std::vector<MktBook_t>& sell_order_book,
 template< class T1, class T2>
 Client<T1, T2>::~Client(){
 	market_map_iterator it;
+	buy_sid *var = nullptr;
 	for ( it = markets.begin() ; it != markets.end();++it ){
-		delete it->second;
+		var = it->second;
+		if ( var != nullptr) delete var;
 	}
 	return;
 }
@@ -187,7 +189,8 @@ template<class T1,class T2>
 		 it = markets.find( secu );
 
 		 if (it == markets.end() ){
-			 var = new buy_sid();
+			 var = new (std::nothrow) buy_sid();
+			 //TODO handle if new returns nullptr
 			 if (!markets.insert(std::pair<std::string,buy_sid*>(secu , var)).second) {
 				 std::cerr<<"ERROR on creating new market book\n";
 				 exit(EXIT_FAILURE);
@@ -461,6 +464,7 @@ void* Client<T1,T2>::get_data(void *ptr ){
 	}else if (rc == 0){
 	   perror("No data received in last 1 minute..");
 	   cl_ptr->stop_worker = true;
+	   std::cout<<"COUNT ["<<count<<"] "<<std::endl;
 	   break;
 	}
       else
@@ -506,6 +510,9 @@ void* Client<T1,T2>::get_data(void *ptr ){
 				 /* update server to remove packets from his lookup storage */
 				 if ( ++count % 100 == 0){
 					 res_pack.is_resend = false;
+#ifdef DEBUG
+					 res_pack.seq_no = obj.seqno_;
+#endif
 					 is_send_res = true;
 				 }
 			 }

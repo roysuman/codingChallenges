@@ -69,6 +69,7 @@ void* Server<T>::maintain_lookup( void *ptr){
 			break;
 		}else if (rc == 0){
 			perror("No data received in last 1 minute..");
+			//TODO to keep the connection..implement heartbeat..
 			break;
 		}
 		else
@@ -103,9 +104,12 @@ void* Server<T>::maintain_lookup( void *ptr){
 						/*remove last 100 elements*/
 #ifdef DEBUG
 						std::cout<<"REMOVE LAST 100 elem\n"<<std::endl;
+#endif
+#ifdef CONSIDER_NO_PACKET_LOSS
 						if ( (size_t)rp.seq_no == 1000 ){
-							std::cout<<"\nSEQ 1000\n"<<std::endl;
-							exit(0);
+							gettimeofday(&srvr_ptr->tv2,NULL);
+							srvr_ptr->server_log<<"\n\n TIME TAKEN BY SERVER ...CONSIDERING NO PACKET LOSS.. RESEND\n"<<std::endl;
+							srvr_ptr->calc_stat();
 						}
 #endif
 						srvr_ptr->lookup_queue->update_read_head( 100 );
@@ -241,6 +245,7 @@ void * Server<T>::communicate_with_client  (void *ptr){
 	size_t resent_send_seq =0;
 	unsigned char buffer[256];
 	gettimeofday(&(srvr_ptr->tv1),NULL);
+	bool i_am_done_once = false;
 	do{
 #ifdef DEBUG
 		std::cout<<__FUNCTION__<<std::endl;
@@ -266,11 +271,12 @@ void * Server<T>::communicate_with_client  (void *ptr){
 				srvr_ptr->prev_send_seq = srvr_ptr->lookup_seq -1;
 				for( size_t index = srvr_ptr->lookup_seq ; index <= resent_send_seq;++index ){
 					/* TODO check that read request index available or not */
-					std::cout<<"\nINFO...read from look up queue POSITION "<<std::endl;
 						
 					
 					srvr_ptr->lookup_queue->read_queue_from_position(&obj, index -1 );
+#ifdef DEBUG
 					std::cout<<"\nREAD SEQ NO "<<obj.seqno_<<std::endl;
+#endif
 					Server<T>::send(obj,(void*)srvr_ptr);
 					/* there mighe be a situation..when packel loss ocurs
 					 * during lost packet resending.....
@@ -298,8 +304,8 @@ void * Server<T>::communicate_with_client  (void *ptr){
 		/* read from normal queue */
 		if ( !srvr_ptr->lookup_queue->is_full() ){/* if lookup storage is not full.. */
 			flag = srvr_ptr->global_storage_queue->de_queue(&obj);
-			if(flag==0 )
-				std::cerr<<"\nQueue is empty\n";
+			if(flag==0 );/* queue is empty */
+				//std::cerr<<"\nQueue is empty\n";
 			else{
 				/* store the data into temp storage for lookup 
 				 * this situation will never happen*/
@@ -308,20 +314,39 @@ void * Server<T>::communicate_with_client  (void *ptr){
 						going to sleep for a while"<<std::endl;
 					usleep(1);
 				}
-			}
-			resent_send_seq = obj.seqno_;
-			/* to test the logic.. forcefully do packet loss
-			 * because sometimes UDP sends all packet successfulyi..
-			 * it comment the beow line @production */
-			if ( obj.seqno_ != 100  || obj.seqno_ != 854)
+				resent_send_seq = obj.seqno_;
+#ifdef TEST_PACKET_LOSS
+				/* to test the logic.. forcefully do packet loss
+				 * because sometimes UDP sends all packet successfulyi..
+				 * it comment the beow line @production */
+				if ( obj.seqno_ != (uint16_t)100  ){
+				//	srvr_ptr->server_log<<"SEQ NO"<<obj.seqno_<<std::endl;
+				//	srvr_ptr->server_log<<"\nEither packe 100 | 854 \n"<<std::endl;
+				        Server<T>::send(obj,(void*)srvr_ptr);
+				}
+#else
 				Server<T>::send(obj,(void*)srvr_ptr);
+#endif
+#ifdef CONSIDR_PACKET_LOSS
+				/* following logic just to check the time taken by server
+				 * to send all packets without considering packet loss */
+				if ( obj.seqno_ == 1000 && !i_am_done_once ){
+					srvr_ptr->server_log<<"\n\n\nTIME TAKEN BY SERVER TO SEND ALL PACKETS...without considering packet loss\n"<<std::endl;
+					gettimeofday(&srvr_ptr->tv2,NULL);
+					srvr_ptr->calc_stat();
+					i_am_done_once = true;
+				}
+#endif
+			}
 		}
-		std::cout<<"\nlookup_que is_empty [ "<<srvr_ptr->lookup_queue->is_empty()<<std::endl;
+	
 	}while( !srvr_ptr->stop_server );//&& !srvr_ptr->lookup_queue->is_empty());/* TODO stoping condition */
-	std::cout<<"OUT OF\n"<<std::endl;
-
-	/*TODO send signal that it has done */
+#ifdef CONSIDER_SERVER_SHUT_SOWN
+	srvr_ptr->server_log<<"\n\n\nTIME TAKEN BY THE SERVER ....TILL SERVER IS GOING DOWN\n"<<std::endl;
 	gettimeofday(&srvr_ptr->tv2,NULL);
+	srvr_ptr->calc_stat();
+#endif
+
 	
 	return nullptr;
 }
@@ -397,12 +422,12 @@ int main(int argc, char**argv){
 	if ( server_ins.init_server()){
 
 		 rc[0] = pthread_create(&threads[0], NULL, Server<struct ExchangeA_MD>::read_and_store_market_data, (void*)&server_ins);
-		 rc[1] = pthread_create(&threads[0], NULL, Server<struct ExchangeA_MD>::communicate_with_client, (void*)&server_ins);
-		 rc[2] = pthread_create(&threads[0], NULL, Server<struct ExchangeA_MD>::maintain_lookup, (void*)&server_ins);
-		 server_ins.calc_stat();
-		 (void) pthread_join(threads[0],nullptr);
-		 (void) pthread_join( threads[1],nullptr);
-		 (void) pthread_join( threads[2],nullptr);
+		 rc[1] = pthread_create(&threads[1], NULL, Server<struct ExchangeA_MD>::communicate_with_client, (void*)&server_ins);
+		 rc[2] = pthread_create(&threads[2], NULL, Server<struct ExchangeA_MD>::maintain_lookup, (void*)&server_ins);
+		 for ( size_t index = 0 ; index < 3 ; ++index){
+			 (void) pthread_join(threads[index],nullptr);
+
+		 }
 	}
 	return 0;
 }

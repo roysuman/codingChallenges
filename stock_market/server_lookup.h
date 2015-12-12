@@ -16,6 +16,7 @@
  * =====================================================================================
  */
 
+
 /*-----------------------------------------------------------------------------
  *Thread-1 is responsable to read packet from binary file and update into a Queue, say QUEUE1.
  *Thread-2 reads packet from  QUEUE1, and keep into a temporary storage{untill it get's a
@@ -42,6 +43,13 @@
 
 #define QUEUE_SIZE 1000
 
+/* select which time stamp do you want */
+//#define CONSIDER_PACKET_LOSS
+//#define CONSIDER_SERVER_SHUT_SOWN
+#define CONSIDER_NO_PACKET_LOSS 1
+
+//define TEST_PACKET_LOSS /* to simulate a packet loss */
+
 /*-----------------------------------------------------------------------------
  *  A circuler queue class.... to maintain the data storage.....in client.cpp also 
  *  A queue has been created....TODO use only one queue class...u can define a 
@@ -67,7 +75,9 @@ class CircularQueue {
 		int en_queue( T& value) {
 			int return_val;
 			if (this->is_full()) {
+#ifdef DEBUG
 				std::cout << "queue is overflow\n";
+#endif
 				return_val = 0;
 				
 			} else {
@@ -85,7 +95,9 @@ class CircularQueue {
 		int de_queue(T *value) {
 			int return_val;
 			if (this->is_empty()) {
+#ifdef DEBUG
 				std::cout << "Queue is Empty\n";
+#endif
 				return_val = 0;
 				
 			} else {
@@ -104,7 +116,9 @@ class CircularQueue {
 		inline int read_queue_from_position( T *value,ssize_t position){
 			int return_val;
 			if (this->is_empty()) {
+#ifdef DEBUG
 				std::cout << "Queue is Empty\n";
+#endif
 				return_val = 0;
 				
 			} else {
@@ -169,12 +183,14 @@ class Server{
 		explicit Server(std::string config_file_name_):config_file_name(config_file_name_),
 			start_sending_from_lookup(false),lookup_seq(-1),look_up_var_lock(PTHREAD_MUTEX_INITIALIZER),
 			lookup_queue(nullptr),global_storage_queue(nullptr),prev_send_seq(-1),
-			stop_server(false){}
+			stop_server(false) {}
 
 		virtual ~Server(){
-			if ( global_storage_queue != nullptr ) delete global_storage_queue;
-			if ( lookup_queue != nullptr ) delete lookup_queue;
-			if ( server_log.is_open())server_log.close();
+			if ( global_storage_queue != nullptr ); delete global_storage_queue;
+			if ( lookup_queue != nullptr ) ;delete lookup_queue;
+			if ( server_log.is_open());server_log.close();
+			if ( sock_created[0])close(sockfd);
+			if ( sock_created[1])close(sockfd1);
 		}
 		void calc_stat(void);
 		static void* communicate_with_client(void *);

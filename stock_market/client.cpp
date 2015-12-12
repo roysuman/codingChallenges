@@ -141,7 +141,7 @@ Client<T1, T2>::~Client(){
 	buy_sid *var = nullptr;
 	for ( it = markets.begin() ; it != markets.end();++it ){
 		var = it->second;
-		if ( var != nullptr) delete var;
+		if ( var != nullptr);// delete var; //TODO fix segmentation fault
 	}
 	return;
 }
@@ -497,7 +497,7 @@ void* Client<T1,T2>::get_data(void *ptr ){
 		 if(  obj.seqno_ > seq_no ){
 			 if ( seq_no + 1 != obj.seqno_ ){
 			//	 print_file (cl_ptr-> buy_order_book , cl_ptr->sell_order_book , cl_log->client_log );
-				 std::cout<<seq_no<<"MISMATCH"<<obj.seqno_<<std::endl;
+				 cl_ptr->client_log<<seq_no<<"MISMATCH"<<obj.seqno_<<std::endl;
 				 /* request server to resend missed packes */
 				 res_pack.is_resend = true;
 				 res_pack.seq_no = (uint16_t) seq_no + 1; 
@@ -510,9 +510,7 @@ void* Client<T1,T2>::get_data(void *ptr ){
 				 /* update server to remove packets from his lookup storage */
 				 if ( ++count % 100 == 0){
 					 res_pack.is_resend = false;
-#ifdef DEBUG
 					 res_pack.seq_no = obj.seqno_;
-#endif
 					 is_send_res = true;
 				 }
 			 }

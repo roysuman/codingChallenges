@@ -90,7 +90,7 @@ int main(int argc, char *argv[]){
 	  else{
 		 uint8_t *temp_send=new uint8_t[sizeof(obj)];
 		 /*serialize data */
-		 server_log<<obj.seqno_<<":"<<(int)obj.level_<<std::endl;
+//		 server_log<<obj.seqno_<<":"<<(int)obj.level_<<std::endl;
 		 int n_size = serialize(obj, temp_send);
 #ifdef TEST
 		 ExchangeA_MD test = deserialize( temp_send ); 

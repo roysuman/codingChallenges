@@ -28,8 +28,12 @@
 #include<thread>
 #include<unordered_map>
 #define TEST 1
-#define INTERVAL_COUNT 1
 //#define DEBUG 1
+#ifdef DEBUG
+#define INTERVAL_COUNT 1
+#else
+#define INTERVAL_COUNT 100
+#endif
 typedef struct buy_sid_{
   std::vector <MktBook_t> buy_order_book,sell_order_book;
 

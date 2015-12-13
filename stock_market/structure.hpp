@@ -13,7 +13,8 @@
 #ifndef _STRUCTURE_H_
 #define _STRUCTURE_H_
 #include "header.hpp"
-
+//#define DEBUG 1
+//#define INFO
 //structure_Exchange_message
 enum ExchangeA_MsgType {NewLevel,DeleteLevel,ModifyLevel} ;
 struct ExchangeA_MD{

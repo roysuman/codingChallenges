@@ -85,17 +85,26 @@ bool LimitBook<T1,T2>::perform_delete( std::vector<T1>&vec,
 		T1& elem, ssize_t level){
 
 	bool   return_val;
-	/* check whether the vector level has same value of elem or not */
+	/* check whether the vector level has same value of elem or not
+	 * and check the index as well */
+		      /* Scenario:
+		       * obj.level <= limit book size and limitbook's obj.level index has same pricee with obj.price
+		       * then check the obj.size ...if size also matches with limit book index..then do compleate delete operation 
+		       * else do update the size*/
+		      /* if obj.level > limit book size....? this situation idicates some data mismatch... in that case to make
+		       * the limit book stable...search the limit book for  obj.price..if that price exist then  either delte or update size*/
 
-	if ( elem.price != vec[level].price ){
+	if ( elem.price != vec[level].price || level >= vec.size()){
+#ifdef INFO
 		client_log<<"\nINFO.. The price [ "
 		       <<vec[level].price
 			<<" ] present in vector level ["
 		       <<level
-		       <<"  DOES NOT MATCH with delete req Price [ "
+		       <<" ] DOES NOT MATCH with delete req Price [ "
 		       <<elem.price
 		       <<" ] Searching vector for PRICE [ "<<elem.price
 		       <<" ] "<<std::endl;
+#endif
 		typename std::vector<T1>::iterator it;
 		it = find_if(vec.begin(),vec.end(), std::bind(special_compare<T1>,std::placeholders::_1 , elem));
 		level = std::distance ( vec.begin() , it );
@@ -110,11 +119,13 @@ bool LimitBook<T1,T2>::perform_delete( std::vector<T1>&vec,
 		}
 		return_val = true;
 	}else{
+#ifdef INFO
 		client_log<<"INFO .. Price "
 		    <<elem.price
 		    <<"Does not present in Vector \
 		    Delete request failed"
 		    <<std::endl;
+#endif
 	       	return_val = false;
 	}
 	return true;
@@ -224,7 +235,7 @@ template <class T1, class T2>
 void LimitBook<T1,T2>::maintain_limit_book ( T2& obj ){
 
 	++count;
-
+#ifdef DEBUG
 	client_log<<"\nPROCESSING PACKET NO -- "<<count<<std::endl;
 	client_log<<"sequence no  ["<<obj.seqno_
 		<<" ] msg type [ "<<obj.msg_
@@ -234,7 +245,7 @@ void LimitBook<T1,T2>::maintain_limit_book ( T2& obj ){
 		<<" ] price [ "<<obj.price_
 		<<" ] Contract [ "<<obj.contract_
 		<<" ] "<<std::endl;
-
+#endif
 
 	T1 mkt_update(obj);
 	market_map_iterator it;
@@ -284,9 +295,16 @@ void LimitBook<T1,T2>::maintain_limit_book ( T2& obj ){
 	      break;
 	   case 1:/* delete/remove */
 	      switch(obj.side_){
+		      /* Scenario:
+		       * obj.level <= limit book size and limitbook's obj.level index has same pricee with obj.price
+		       * then check the obj.size ...if size also matches with limit book index..then do compleate delete operation 
+		       * else do update the size*/
+		      /* if obj.level > limit book size....? this situation idicates some data mismatch... in that case to make
+		       * the limit book stable...search the limit book for  obj.price..if that price exist then  either delte or update size*/
 		 case 'S':/* sell side */
 		 case 's':
-			 if ( (size_t)obj.level_   < var->sell_order_book.size () ){
+			 (void)perform_delete( var->sell_order_book, mkt_update , obj.level_ ); 
+			/* if ( (size_t)obj.level_   < var->sell_order_book.size () ){
 				 (void)perform_delete( var->sell_order_book, mkt_update , obj.level_ ); 
 			 }
 			 else {
@@ -294,11 +312,12 @@ void LimitBook<T1,T2>::maintain_limit_book ( T2& obj ){
 					 << " ] VecSize [ " << var->sell_order_book.size()
 					<<" ] PRICE [ "<<obj.price_
 					<<std::endl;
-			 }
+			 }*/
 			 break;
 		 case 'B':
 		 case 'b':
-			 if ((size_t)obj.level_ < var->buy_order_book.size() ){
+			 (void)perform_delete( var->buy_order_book, mkt_update , obj.level_ ); 
+			 /* if ((size_t)obj.level_ < var->buy_order_book.size() ){
 				 (void)perform_delete( var->buy_order_book, mkt_update , obj.level_ ); 
 			 }
 			 else{ 
@@ -307,7 +326,9 @@ void LimitBook<T1,T2>::maintain_limit_book ( T2& obj ){
 					<<" ] PRICE [ "<<obj.price_
 					<<std::endl;
 			 }
+			 */
 			 break;
+			 
 		 default:
 			 client_log<<"ERROR ... wrong side, delete/remove request"
 				 <<std::endl;
@@ -325,11 +346,13 @@ void LimitBook<T1,T2>::maintain_limit_book ( T2& obj ){
 			 }else {
 				 /* that level is not present in the market book
 				    * insert this data */
+#ifdef INFO
 				 client_log << "INFO.. inserting the data while level"
 					 <<"is not present for update(S)Level [  "
 					 << (size_t)obj.level_ << " ] VecSize:"
 					<<  var->sell_order_book.size()
 					<<" ] "<< std::endl;
+#endif
 			 
 #ifdef DEBUG_DELETE
 				 client_log<<"##$$$DELETE-SELL-DEBUG$$$##"<<std::endl;
@@ -355,11 +378,15 @@ void LimitBook<T1,T2>::maintain_limit_book ( T2& obj ){
 				 var->buy_order_book[obj.level_].price=obj.price_;
 				 var->buy_order_book[obj.level_].size=obj.size_;
 			 }else {
+#ifdef INFO
 				 client_log << "INFO.. inserting the data while level"
 					 <<"is not present for update(B) LEVEL [ "
 					 << " ] " <<(size_t)obj.level_ << " ]  VecSize [ "
 							   <<  var->buy_order_book.size()
 							   <<" ] "<< std::endl;
+#else
+				 ;
+#endif
 #ifdef DEBUG_DELETE
 				 client_log<<"##$$$DELETE-BID-DEBUG$$$##"<<std::endl;
 				 client_log<<"\nBOOK before UPDATE operation"<<std::endl;
@@ -468,8 +495,6 @@ bool LimitBook<T1, T2>::do_market_analysis( buy_sid *var){
 		        (var->sell_order_book.size()>= 1 ) && 
 			( var->buy_order_book[0].price >= 
 			   var->sell_order_book[0].price )) {
-
-
 			  
 			  // print_file ( var->buy_order_book , var->order_book , cl_ptr->client_log );
 			  int dif1 = (int)var->buy_order_book[0].size - 

@@ -49,8 +49,6 @@ This files describes the logic I have followed to solve this question
 	 a shared queue. Thread-2 reads data from shared queue and maintains the limit book. This architecture is similar like Kernel's Top half 
 	 and bottom half concept. As Thread-1 is simply reading data from network and storing into a shared queue, hence the rate of packet loss will be less.
 	(3) Have used select to wait for incoming data. Ref "man select"
-	*(4) I was developing a logic to handle UDP packet loss scenario. This implementation is not complete but still it's present at experiment 
-	 branch.
 
 
 #If my assumptions about limit book is wrong, then my solution is also wrong. 

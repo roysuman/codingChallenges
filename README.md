@@ -1,2 +1,0 @@
-# codingChallenges
-solving interesting challenges

@@ -1,0 +1,198 @@
+
+###################################################################################################
+#TASTCASE 1
+
+sequence no  [1 ] msg type [ 0 ] side [  S ] level [ 1 ] size [103 ] price [ 100 ] 
+
+
+ PRINTING Stock of [ Y] 
+
+----------------------------------------------------------------------
+		<-----BID----->	<----SELL---->
+INDEX [ 0 ] XXX	XXX	XXX	100	103
+----------------------------------------------------------------------
+#ANALYSIS: Limit book start's from level 0. But incoming packet has level 1.. so automatucally
+#level 1 becomes level 0..after puting into the book
+#
+###################################################################
+
+#TESTCASE 2
+
+#Limit book before the change
+ PRINTING Stock of [ Y] 
+
+----------------------------------------------------------------------
+		<-----BID----->	<----SELL---->
+INDEX [ 0 ] 1	99	XXX	100	103
+INDEX [ 1 ] 143	98	XXX	101	118
+INDEX [ 2 ] 267	97	XXX	102	460
+INDEX [ 3 ] 817	96	XXX	103	205
+INDEX [ 4 ] 166	95	XXX	104	257
+INDEX [ 5 ] 172	94	XXX	105	412
+INDEX [ 6 ] 760	93	XXX	106	286
+INDEX [ 7 ] 425	92	XXX	107	369
+INDEX [ 8 ] 438	91	XXX	108	325
+INDEX [ 9 ] 353	90	XXX	109	258
+----------------------------------------------------------------------
+
+#Incoming packet 
+sequence no  [21 ] msg type [ 0 ] side [  B ] level [ 1 ] size [82 ] price [ 98 ] Contract [ Y ] 
+
+#limit book after processing packet
+ PRINTING Stock of [ Y] 
+
+----------------------------------------------------------------------
+		<-----BID----->	<----SELL---->
+INDEX [ 0 ] 1	99	XXX	100	103
+INDEX [ 1 ] 82	98	XXX	101	118
+INDEX [ 2 ] 267	97	XXX	102	460
+INDEX [ 3 ] 817	96	XXX	103	205
+INDEX [ 4 ] 166	95	XXX	104	257
+INDEX [ 5 ] 172	94	XXX	105	412
+INDEX [ 6 ] 760	93	XXX	106	286
+INDEX [ 7 ] 425	92	XXX	107	369
+INDEX [ 8 ] 438	91	XXX	108	325
+INDEX [ 9 ] 353	90	XXX	109	258
+----------------------------------------------------------------------
+#Analysis: Step1: 98 with value 82 inserted @level1(index1)..
+#          Then where is 143@98?
+#          According to the limit book property no duplicate of price is allowed..hence 143@98 deleted.
+##################################################################################################################
+#
+#Test case 3
+#
+#Limit book before operation.
+
+ PRINTING Stock of [ Y] 
+
+----------------------------------------------------------------------
+		<-----BID----->	<----SELL---->
+INDEX [ 0 ] 1	99	XXX	100	103
+INDEX [ 1 ] 82	98	XXX	101	118
+INDEX [ 2 ] 267	97	XXX	102	460
+INDEX [ 3 ] 817	96	XXX	103	205
+INDEX [ 4 ] 166	95	XXX	104	257
+INDEX [ 5 ] 172	94	XXX	105	412
+INDEX [ 6 ] 760	93	XXX	106	286
+INDEX [ 7 ] 425	92	XXX	107	369
+INDEX [ 8 ] 438	91	XXX	108	325
+INDEX [ 9 ] 353	90	XXX	109	258
+
+#Incoming packet
+sequence no  [22 ] msg type [ 1 ] side [  B ] level [ 2 ] size [82 ] price [ 98 ] Contract [ Y ] 
+#It's a delete request on level 2.
+#
+INFO.. The price [ 97 ] present in vector level [ 2 ]  DOES NOT MATCH with delete req Price [ 98 ] Searching vector for PRICE [ 98 ] 
+
+Printing Limit Book after processing Packet [ 22 ] 
+
+ PRINTING Stock of [ Y] 
+
+----------------------------------------------------------------------
+		<-----BID----->	<----SELL---->
+INDEX [ 0 ] 1	99	XXX	100	103
+INDEX [ 1 ] 267	97	XXX	101	118
+INDEX [ 2 ] 817	96	XXX	102	460
+INDEX [ 3 ] 166	95	XXX	103	205
+INDEX [ 4 ] 172	94	XXX	104	257
+INDEX [ 5 ] 760	93	XXX	105	412
+INDEX [ 6 ] 425	92	XXX	106	286
+INDEX [ 7 ] 438	91	XXX	107	369
+INDEX [ 8 ] 353	90	XXX	108	325
+INDEX [ 9 ] XXX	XXX	XXX	109	258
+----------------------------------------------------------------------
+
+#Analysis: If you see the previous packet... there is no price 98 at level 2.(267@97).
+#so to keep the market stable...we found that 98 is available at position 1.. whose size is also matched
+#hence deleted.
+###########################################################################################################################################
+
+#Test case 4
+# Limit book before operation
+ PRINTING Stock of [ Y] 
+
+----------------------------------------------------------------------
+		<-----BID----->	<----SELL---->
+INDEX [ 0 ] 1	99	XXX	100	103
+INDEX [ 1 ] 267	97	XXX	101	118
+INDEX [ 2 ] 817	96	XXX	102	460
+INDEX [ 3 ] 166	95	XXX	103	205
+INDEX [ 4 ] 172	94	XXX	104	257
+INDEX [ 5 ] 760	93	XXX	105	412
+INDEX [ 6 ] 425	92	XXX	106	286
+INDEX [ 7 ] 438	91	XXX	107	369
+INDEX [ 8 ] 353	90	XXX	108	325
+INDEX [ 9 ] XXX	XXX	XXX	109	258
+----------------------------------------------------------------------
+
+#incoming packet
+sequence no  [24 ] msg type [ 2 ] side [  S ] level [ 1 ] size [42 ] price [ 100 ] Contract [ Y ] 
+
+Printing Limit Book after processing Packet [ 24 ] 
+
+ PRINTING Stock of [ Y] 
+
+----------------------------------------------------------------------
+		<-----BID----->	<----SELL---->
+INDEX [ 0 ] 1	99	XXX	100	42
+INDEX [ 1 ] 267	97	XXX	102	460
+INDEX [ 2 ] 817	96	XXX	103	205
+INDEX [ 3 ] 166	95	XXX	104	257
+INDEX [ 4 ] 172	94	XXX	105	412
+INDEX [ 5 ] 760	93	XXX	106	286
+INDEX [ 6 ] 425	92	XXX	107	369
+INDEX [ 7 ] 438	91	XXX	108	325
+INDEX [ 8 ] 353	90	XXX	109	258
+----------------------------------------------------------------------
+
+#Analysis: It's aupdate request.. we updated level 1 by 100@42..after that we found that one 
+#duplicate( 100@103 at level 0)i already present in the book..hence..modified the book.
+#
+#
+#####################################################################################################
+# Test case 5
+#Limit book before operation
+ PRINTING Stock of [ ZZ] 
+
+----------------------------------------------------------------------
+		<-----BID----->	<----SELL---->
+INDEX [ 0 ] 374	117	XXX	121	147
+----------------------------------------------------------------------
+
+
+
+ PRINTING Stock of [ Y] 
+
+----------------------------------------------------------------------
+		<-----BID----->	<----SELL---->
+INDEX [ 0 ] 4	100	XXX	101	166
+INDEX [ 1 ] 129	99	XXX	XXX	XXX
+----------------------------------------------------------------------
+#Incoming packet
+sequence no  [353 ] msg type [ 0 ] side [  S ] level [ 1 ] size [11 ] price [ 100 ] Contract [ Y ] 
+
+Printing Limit Book after processing Packet [ 353 ] 
+
+#Limit book after processing packet
+ PRINTING Stock of [ ZZ] 
+
+----------------------------------------------------------------------
+		<-----BID----->	<----SELL---->
+INDEX [ 0 ] 374	117	XXX	121	147
+----------------------------------------------------------------------
+
+
+
+ PRINTING Stock of [ Y] 
+
+----------------------------------------------------------------------
+		<-----BID----->	<----SELL---->
+INDEX [ 0 ] 129	99	XXX	100	7
+----------------------------------------------------------------------
+
+#Analysis: Packet 11@100 puted in sell side..which ws violating book property..
+#hence 101@166 deleted...now level 0 at sell side has value 11@100.
+#Now check the top(level0) value of bid book(obhiously packet)...it's 4@100
+#one use wants to but 4 quantity of Y by 100 price..and sell side book has value 11 @100
+#hence 4 prodects soled out...and remaining in the book.
+##############################################################################################################################

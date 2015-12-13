@@ -1,0 +1,7 @@
+go to folder socket
+then type make all
+after that run
+./server serverinput.txt   (for starting server )
+open a different terminal and run
+./clent clientinput.txt
+after completing check two log files for server.log and client.log

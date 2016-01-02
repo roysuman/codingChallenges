@@ -1,0 +1,85 @@
+[Problem Statement][1]
+
+[1]:https://www.hackerrank.com/companies/vmware/challenges/logical-hub-controller
+
+Background
+
+A typical virtualized datacenter consists of many physical hypervisor hosts connected to each other via a flat IP network, and each hypervisor can talk to every other hypervisor over that IP network. This fully connected IP substrate is inappropriate for virtual machines (VMs) running in a multi-tenant datacenter because each VM can belong to a different tenant. For example, Coke and Pepsi could both be tenants of the same datacenter, but their VMs should not be able to communicate with each other; each tenant must have a logically separate network. In this challenge, you will implement a simplified network virtualization controller that configures the network forwarding rules in each hypervisor host.
+
+Datacenter Topology
+
+Let’s take the following datacenter and logical hub topology as an example: Screen Shot 2015-08-14 at 12.37.44 PM.png This example topology has three hypervisor hosts: Host0, Host1, and Host2. There are three tenants: A, B, and C. Each tenant has its own logical hub, and the letters above A, B, and C are the ports on the logical hub belonging to each of the three tenants. Each host hypervisor has two or three VMs, and each of the VMs is connected to one of the logical hubs. Each of the numbers 0, 1, and 2 inside each host represent a VM and a virtual interface connected to a logical hub.
+
+Wiring
+
+In this challenge, each logical hub should forward a copy of each packet that arrives from one of the VM’s to the other VMs on the same logical hub. For example, the logical hub B should take each packet that arrives from the VM on Host0/Port1, and forward a copy of that packet to the other ports on logical hub B: Host1/Port1 and Host2/Port0. To move packets from one host to another host, we forward the packets between hosts.
+
+We will implement each logical hub by programming a software switch on each of the hosts. The software switch can receive a packet either from a local VM port or from a tunnel. The software switch can then send that packet to a local VM port, or into a tunnel. When sending a packet from one host to another host, the sending switch attaches an identifier to the packet that the receiving switch on the recipient host can read.
+
+Your task is to program the controller to output the configuration for all of the software switches in the system. Each line of output can be one of three commands:
+
+PORT_TO_TUNNEL host src_port dst_host hub_id
+PORT_TO_PORT host src_port dst_port
+TUNNEL_TO_PORT host hub_id dst_port
+PORT_TO_TUNNEL instructs the software switch on host host to tunnel a packet arriving from local port src_port to another dst_host where another port lives. The switch labels the packet with hub_id so that the receiving host knows which logical hub the packet belongs to.
+
+PORT_TO_PORT instructs the software switch on host host to forward a packet arriving from local port src_port to the local port dst_porton the same host. This is useful when a logical hub has multiple ports on one host.
+
+TUNNEL_TO_PORT instructs the software switch on host to forward a packet arriving via a tunnel with logical hub hub_id to the local port dst_port.
+
+Duplicating packets: for PORT_TO_TUNNEL, PORT_TO_PORT, and TUNNEL_TO_PORT commands, the first two arguments describe where the input packet is coming from and the remaining arguments describe where to send the packet. The controller may output multiple commands with the same two input arguments to duplicate the packet to more than one destination.
+
+Datastructures & Algorithm
+
+Datastructures hosts: a dictionary mapping host_id to list of hub_ids, one hub_id for each port.
+
+For example, a python representation the above topology: hosts = {'HOST0': ('A', 'B', 'A'), 'HOST1': ('A', 'B', 'C'), ‘'HOST2': ('B', 'C')}
+
+Algorithm: For this challenge, you may assume the datacenter size is relatively small, so an O(n^2) algorithm is sufficient where n is the number of ports in the system.
+
+for each port in hosts:
+
+    for any ports on the same hub that are also on the same host:
+        output PORT_TO_PORT command
+
+    for each of the other hosts, if there is another port on the same hub:
+        output PORT_TO_TUNNEL command
+
+    if there is another port on the same hub but on a different host:
+        output TUNNEL_TO_PORT command
+Input Format
+
+Each line of input must be in the following format. Each id should be a combination of letters and numbers with no special symbols. [hub_id] is a space separated list of hub_ids.
+
+host_id [hub_id]
+
+For example, the example above would have the following input:
+
+HOST0 A B A
+HOST1 A B C
+HOST2 B C
+Output Format
+
+The output format uses the three line formats from the “Wiring” section. Here is the expected output for the sample above. The output lines may be in any order.
+
+PORT_TO_PORT HOST0 0 2
+PORT_TO_TUNNEL HOST0 0 HOST1 A
+TUNNEL_TO_PORT HOST0 A 0
+PORT_TO_TUNNEL HOST0 1 HOST1 B
+PORT_TO_TUNNEL HOST0 1 HOST2 B
+TUNNEL_TO_PORT HOST0 B 1
+PORT_TO_PORT HOST0 2 0
+PORT_TO_TUNNEL HOST0 2 HOST1 A
+TUNNEL_TO_PORT HOST0 A 2
+PORT_TO_TUNNEL HOST1 0 HOST0 A
+TUNNEL_TO_PORT HOST1 A 0
+PORT_TO_TUNNEL HOST1 1 HOST0 B
+PORT_TO_TUNNEL HOST1 1 HOST2 B
+TUNNEL_TO_PORT HOST1 B 1
+PORT_TO_TUNNEL HOST1 2 HOST2 C
+TUNNEL_TO_PORT HOST1 C 2
+PORT_TO_TUNNEL HOST2 0 HOST0 B
+PORT_TO_TUNNEL HOST2 0 HOST1 B
+TUNNEL_TO_PORT HOST2 B 0
+PORT_TO_TUNNEL HOST2 1 HOST1 C
+TUNNEL_TO_PORT HOST2 C 1

@@ -1,0 +1,7 @@
+#configuration
+DATA_FILE= [data.txt]
+FILTER_FILE= [filter.txt]
+CLUSTER_COUNT= 2
+SEARCH_COUNT= 2
+london
+in

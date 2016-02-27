@@ -1,0 +1,12 @@
+config.txt:- configuration file.
+ DATA_FILE= [data.txt] --> input file
+ FILTER_FILE= [filter.txt] --> filter to identify wordes which no need to consider during clustering
+ CLUSTER_COUNT= 2 --> print top 2 cluster
+ SEARCH_COUNT= 2 --> no of search on cluster
+ london  -- > search data
+ in
+#----------------------------------------
+ Software: g++ -std=c++11.
+
+ TODO: add json file format for output.
+

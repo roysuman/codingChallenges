@@ -54,7 +54,10 @@ class File{
 };
 
 #include<vector>
+#include<unordered_map>
 typedef struct list_data_ list_data;
+typedef std::unordered_map<std::string,list_data*> container_typedef;
+typedef container_typedef::iterator container_iterator;
 struct list_data_{
 	size_t                     popularity;
 	std::string                word;
@@ -63,12 +66,9 @@ struct list_data_{
 	//storage and list will contain indixes of global
 	//storage of correspoonding data
 	std::vector<std::string>   data; 
+	container_typedef          child_container;
 	list_head                  list_linkage; 
 };
-#include<unordered_map>
-typedef std::unordered_map<std::string,list_data*> container_typedef;
-typedef container_typedef::iterator container_iterator;
-
 class Container{
 	public:
 		explicit Container(){
@@ -76,12 +76,12 @@ class Container{
 		}
 		virtual ~Container(void){}
 	private:
-		container_typedef   container;
 		list_head     HEAD;
 	public:
-		bool insert_data( std::string data , std::string& line);
-		size_t print_n_data( size_t count);
+		bool insert_data( container_typedef& container, std::string word, std::string& line, bool pass);
+		size_t print_n_data( size_t count, bool print_cluster_data = false);
 		bool search_keyword( std::string& word, std::vector<std::string>& );
+		container_typedef   container;
 };
 
 #include<map>
@@ -97,12 +97,12 @@ class ClusterManager{
 			delete container_ins;
 		}
 		bool process_data( void );
-		size_t print_top_n_cluster( size_t count=0);
+		size_t print_top_n_cluster( size_t count=0, bool print_cluster_data = false);
 		bool search_keyword( std::string& word, std::vector<std::string>& );
 	private:
 		std::string    input_file_name;
 		std::string    filter_file_name;
-		Container*   container_ins;
+		Container*     container_ins;
 		std::map<std::string,bool> filter; //no use of bool`
 		bool init_filter(void);
 };

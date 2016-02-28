@@ -1,7 +1,7 @@
 #configuration
 DATA_FILE= [data.txt]
 FILTER_FILE= [filter.txt]
-CLUSTER_COUNT= 2
+CLUSTER_COUNT= 10 
 SEARCH_COUNT= 2
 london
-in
+london attractions

@@ -113,29 +113,57 @@ File::close_file( void ){
 /* 
  * ===  FUNCTION  ======================================================================
  *         Name:  insert_data
- *  Description:  insert data into container.
+ *  Description:  insert data into container. each container list can have another container
+ *                hashing....to maintain relationship
  * =====================================================================================
  */
 
 
+#include<sstream>
 bool
-Container::insert_data( std::string word,std::string& line){
+Container::insert_data(container_typedef& container, std::string word,std::string& line, bool pass){
 	container_iterator   it;
 	list_data    *popularity_met;//= new list_data();
 	list_head  *current_list;
 	list_data* my_data,*current_data;
 	bool      return_val = true;
+	std::istringstream iss(line);
+	std::string word2;
+#ifdef DEBUG
+	std::cout<<"INSERT DATA INTO CONTAINER Word :\""<<word<<"\" Line : "<<line<<std::endl;
+	std::cout<<"CONTAINER SIZE"<<container.size()<<std::endl;
+#endif
 	//check word already present or not
 	it = container.find(word);
-	if ( it == container.end()){//new entry
+#ifdef DEBUG
+	std::cout<<"PRINT CONTAINER KEYWORD"<<std::endl;
+	for ( container_iterator it = container.begin(); it!= container.end();++it){
+		std::cout<<it->first<<std::endl;
+	}
+#endif
+	if ( it ==container.end()){//new entry
+#ifdef DEBUG
+		std::cout<<"New entry"<<std::endl;
+		std::cout<<"SIZE"<<popularity_met->child_container.size()<<std::endl;
+#endif
 		list_data    *popularity_met= new list_data();
 		popularity_met->popularity = 1;
 		popularity_met->word = word;
 		popularity_met->data.push_back(line);
 		(void)list_add_tail( &(popularity_met->list_linkage),&HEAD);
 		return_val = container.insert(std::pair<std::string,list_data*>(word,popularity_met)).second;
+		 while(iss>>word2 && return_val && !pass){
+#ifdef DEBUG
+			std::cout<<"ROUND 2"<<word2<<std::endl;
+			std::cout<<popularity_met->child_container.size()<<std::endl;
+#endif
+			return_val= insert_data( popularity_met->child_container , word2,line,true);
+		}
 
 	}else{
+#ifdef DEBUG
+		std::cout<<"Existing entry"<<std::endl;
+#endif
 		popularity_met =(list_data*) it->second;
 		my_data = get_member_struct( &popularity_met->list_linkage,list_data,list_linkage);
 		popularity_met->popularity++;
@@ -159,26 +187,51 @@ Container::insert_data( std::string word,std::string& line){
 		popularity_met->list_linkage.next = current_list->next;
 		current_list->next->prev = &popularity_met->list_linkage;
 		current_list->next = &popularity_met->list_linkage;
+		
+		while(iss>>word2 && return_val && !pass){
+#ifdef DEBUG
+			std::cout<<"ROUND 2"<<word2<<std::endl;
+			std::cout<<popularity_met->child_container.size()<<std::endl;
+#endif
+			return_val= insert_data( popularity_met->child_container , word2,line,true);
+		}
 	}
 	return return_val;
 }
 
 size_t
-Container::print_n_data( size_t count){
+Container::print_n_data( size_t count , bool print_cluster_data ){
 	list_head *attr_list_temp, *temp_list_store;
 	size_t count_cluster = 0;
-	list_data* current_data;
+	list_data* current_data, *c_data;
 	list_for_each_safe ( attr_list_temp, temp_list_store, &HEAD){
 		current_data =(list_data*) get_member_struct( attr_list_temp,list_data,list_linkage);
+		if ( current_data->child_container.size() == 0 ) continue;
 		std::cout<<"----------------\n";
-		std::cout<<"CLUSTER KEY \""<<current_data->word<<"\" POPULARITY "<<current_data->popularity<<std::endl;
-		std::cout<<"Data.....\n";
+		std::cout<<"#CLUSTER \""<<current_data->word
+			<<"\" RANNK "<<current_data->popularity
+			<<" KEYWORDS :"<<current_data->data.size()
+			<<std::endl;
+		for( container_iterator it = current_data->child_container.begin();
+				it!= current_data->child_container.end();++it){
+			c_data = it->second;
+
+			std::cout<<" SUB_CLUSTER \""<<c_data->word
+				<<"\" RANNK "<<c_data->popularity
+				<<" KEYWORDS :"<<c_data->data.size()
+				<<std::endl;
+			
+		}
 		count_cluster++;
-		for ( size_t loop = 0; loop< current_data->data.size() ;++loop){
-			std::cout<<loop+1<<". "<<current_data->data[loop]<<std::endl;
+		if ( print_cluster_data){
+			std::cout<<"Data.....\n";
+			for ( size_t loop = 0; loop< current_data->data.size() ;++loop){
+				std::cout<<loop+1<<". "<<current_data->data[loop]<<std::endl;
+			}
 		}
 		if ( count_cluster == count )
 			break;
+		
 	}
 		return count_cluster;
 
@@ -200,7 +253,6 @@ Container::search_keyword(std::string& key_word, std::vector<std::string>& match
 	}
 	return return_val;
 }
-#include<sstream>
 
 /* 
  * ===  FUNCTION  ======================================================================
@@ -213,6 +265,8 @@ ClusterManager::process_data( void ){
 	bool          return_val;
 	std::string   line;
 	std::string   word;
+	std::string   double_keyword;
+	size_t        word_count=0;
 
 	File*    file_manager;
 	file_manager = new File(input_file_name);
@@ -223,8 +277,17 @@ ClusterManager::process_data( void ){
 			//process each word
 			std::istringstream iss(line);
 			while(iss >> word && return_val) {
-				if ( filter.find(word) == filter.end())
-					return_val = container_ins->insert_data( word ,line);
+				if ( filter.find(word) == filter.end()){
+					/* process double keyword */
+					word_count++;
+					if ( word_count > 1){
+						double_keyword =  double_keyword + " " + word;
+					return_val = container_ins->insert_data(container_ins->container, double_keyword ,line, false);
+						double_keyword.erase(double_keyword.begin(),double_keyword.end());
+					}
+					double_keyword = word;
+					return_val = container_ins->insert_data(container_ins->container, word ,line, false);
+				}
 			}
 		}
 	}
@@ -249,6 +312,9 @@ ClusterManager::init_filter( void){
 	return_val = file_manager->open_file();
 	if ( return_val ){
 		while ( file_manager->read_line( line )  && return_val ){
+#ifdef DEBUG
+			std::cout<<"FILTER"<<line<<std::endl;
+#endif
 			return_val = filter.insert(std::pair<std::string,bool>(line,true)).second;
 		}
 	}
@@ -270,8 +336,8 @@ ClusterManager::search_keyword(std::string& key_word, std::vector<std::string>& 
  * =====================================================================================
  */
 size_t
-ClusterManager::print_top_n_cluster( size_t count){
-	return container_ins->print_n_data( count);
+ClusterManager::print_top_n_cluster( size_t count, bool print_cluster_data ){
+	return container_ins->print_n_data( count, print_cluster_data);
 }
 
 bool
@@ -346,8 +412,36 @@ Config::parse_config(){
 
 
 
+#include <unistd.h>
+#include <chrono>
+#include <sstream>
+#include<iostream>
+#include <ratio>
 
 
+class my_ostream
+{
+public:
+  my_ostream() : my_fstream("some_file.txt") {}; // check if opening file succeeded!!
+  // for regular output of variables and stuff
+  template<typename T> my_ostream& operator<<(const T& something)
+  {
+    std::cout << something;
+    my_fstream << something;
+    return *this;
+  }
+  // for manipulators like std::endl
+  typedef std::ostream& (*stream_function)(std::ostream&);
+  my_ostream& operator<<(stream_function func)
+  {
+    func(std::cout);
+    func(my_fstream);
+    return *this;
+  }
+private:
+  std::ofstream my_fstream;
+};
+ 
 int
 main(void){
 	std::string config_file_name = "config.txt";
@@ -358,19 +452,22 @@ main(void){
 	std::string data_file_name, filter_file_name;
 	size_t count;
 	ClusterManager* c_managr;
+
 	/* create cluster */
 	if ( conf->get_data_file( data_file_name) & conf->get_filter_file( filter_file_name) ){
 		c_managr= new ClusterManager(data_file_name, filter_file_name);
 		c_managr->process_data();
 	}
-	/* print top n cluster */
-	
+
+
+//	print top n cluster */
+ 	
 	if ( conf->get_cluster_max_count(&count)){
 		std::cout<<"--------------------------\n"
 			<<"PRINT TOP "<<count<<" CLUSTER"<<std::endl;
-		c_managr->print_top_n_cluster( count );
+		c_managr->print_top_n_cluster( count,false );
 	}
-	/* search keyword */
+	// search keyword 
 	std::vector<std::string> key_words;
 	std::vector<std::string> searched_data;
 	if ( conf->get_keywords(key_words) ){
@@ -384,7 +481,6 @@ main(void){
 		}
 	}
 	delete c_managr;
-	
 	delete conf;
 	return 0;
 }
